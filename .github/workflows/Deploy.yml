@@ -1,0 +1,57 @@
+name: Deploy-Book
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  schedule: 
+    - cron: "0 */12 * * *" 
+
+# This job installs dependencies, builds the book, and pushes it to `gh-pages`
+jobs:
+  deploy-book:
+    runs-on: ubuntu-20.04
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        architecture: 'x64'
+
+    # Install dependencies
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get install jupyter -y --fix-missing
+        python -m pip install nbconvert
+        python -m pip install --upgrade pip -r requirements.txt
+        
+    - name: Grab Needed Data
+      run: |
+        sudo apt install unzip
+        wget https://nvd.nist.gov/feeds/json/cve/1.1/nvdcve-1.1-{2002..2023}.json.zip 
+        unzip -o "*.zip" 
+        wget https://raw.githubusercontent.com/CVEProject/cve-website/dev/src/assets/data/CNAsList.json
+         
+    - name: Run Notebooks
+      env:
+        GH_TOKEN:  ${{ secrets.GH_TOKEN }}
+      run: |
+         jupyter nbconvert  --to notebook --inplace --execute sms_using_lemmatizer_with_countvectorizer.ipynb
+         jupyter nbconvert  --to notebook --inplace --execute sms_using_lemmatizer_with_TFIdf_Vectorizer.ipynb
+         jupyter nbconvert  --to notebook --inplace --execute sms_using__Stemmer_with_countvectorizer.ipynb
+         jupyter nbconvert  --to notebook --inplace --execute sms_using_PorterStemmer_with_TFIdf_Vectorizer.ipynb
+         jupyter nbconvert  --to notebook --inplace --execute Spam_Classifier_with_LSTM.ipynb
+        
+    
+    - name: Commit changes
+      uses: EndBug/add-and-commit@v9
+      with:
+          default_author: github_actions
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+
+    - name: Build the book
+      run: |
+        jupyter-book build .
